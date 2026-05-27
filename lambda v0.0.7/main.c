@@ -21,7 +21,6 @@ typedef struct {
 // Opcodes
 typedef enum {
     OP_PUSH_STR = 1,
-    OP_PUSH_VAR_VAL,
     OP_PUSH_INT,
     OP_STORE_VAR,
     OP_LOAD_VAR,
@@ -115,10 +114,6 @@ int compile_expression(char *expr) {
             return 0;
         }
     } 
-    else if (strcmp(expr, "!") == 0) {
-        emit_byte(OP_PUSH_VAR_VAL);
-        return 1;
-    } 
     else {
         // Try parsing math (e.g. 5 + 10)
         int op1, op2;
@@ -145,12 +140,12 @@ int compile_expression(char *expr) {
             emit_int(op1);
             return 1;
         } 
-        // Must be a variable name
+        // Must be a variable name (like "actual_name" or "!")
         else {
             int len = strlen(expr);
             if (len == 0) return 0;
             for (int i = 0; i < len; i++) {
-                if (!isalnum((unsigned char)expr[i]) && expr[i] != '_') {
+                if (!isalnum((unsigned char)expr[i]) && expr[i] != '_' && expr[i] != '!') {
                     fprintf(stderr, "Compiler Error: Invalid variable name or expression: %s\n", expr);
                     return 0;
                 }
@@ -196,21 +191,43 @@ int main(int argc, char **argv) {
     char *line = strtok(buffer, "\r\n");
     while (line != NULL) {
         line = trim(line);
-        if (strlen(line) == 0) {
+        if (strlen(line) == 0 || line[0] == '#') {
             line = strtok(NULL, "\r\n");
             continue;
         }
 
-        if (strncmp(line, "inprint: \"", 10) == 0) {
-            char *start = line + 10;
-            char *end = strchr(start, '"');
-            if (end) {
-                *end = '\0';
-                int const_idx = add_constant(start);
-                emit_byte(OP_INPRINT);
-                emit_byte(const_idx);
+        if (strncmp(line, "inprint: ", 9) == 0) {
+            char *args = line + 9;
+            char *arrow = strstr(args, "->");
+            char *var_name = NULL;
+            char *prompt_part = NULL;
+
+            if (arrow) {
+                *arrow = '\0';
+                prompt_part = trim(args);
+                var_name = trim(arrow + 2);
             } else {
-                fprintf(stderr, "Compiler Error: Missing closing quote in inprint statement\n");
+                prompt_part = trim(args);
+                var_name = "!";
+            }
+
+            // Extract the prompt string (must be a string literal)
+            if (prompt_part[0] == '"') {
+                char *end = strchr(prompt_part + 1, '"');
+                if (end) {
+                    *end = '\0';
+                    int const_idx = add_constant(prompt_part + 1);
+                    int var_idx = get_variable_index(var_name);
+                    emit_byte(OP_INPRINT);
+                    emit_byte(const_idx);
+                    emit_byte(var_idx);
+                } else {
+                    fprintf(stderr, "Compiler Error: Missing closing quote in inprint statement\n");
+                    free(buffer);
+                    return 1;
+                }
+            } else {
+                fprintf(stderr, "Compiler Error: Expected string literal for prompt: %s\n", prompt_part);
                 free(buffer);
                 return 1;
             }
@@ -265,7 +282,6 @@ int main(int argc, char **argv) {
     // ==========================================
     // VM EXECUTION PHASE
     // ==========================================
-    char it_val[256] = "";
     int ip = 0; // Instruction pointer
 
     // VM Operand Stack
@@ -327,13 +343,6 @@ int main(int argc, char **argv) {
                 push(val);
                 break;
             }
-            case OP_PUSH_VAR_VAL: {
-                Value val;
-                val.type = VAL_STR;
-                val.as.str_val = it_val;
-                push(val);
-                break;
-            }
             case OP_PUSH_INT: {
                 int val_int = read_int();
                 Value val;
@@ -362,21 +371,29 @@ int main(int argc, char **argv) {
                 break;
             }
             case OP_INPRINT: {
-                uint8_t idx = bytecode[ip++];
-                printf("%s", constants[idx]);
+                uint8_t prompt_idx = bytecode[ip++];
+                uint8_t var_idx = bytecode[ip++];
+                printf("%s", constants[prompt_idx]);
                 fflush(stdout);
 
                 // Read user input
-                if (fgets(it_val, sizeof(it_val), stdin)) {
-                    size_t len = strlen(it_val);
-                    if (len > 0 && it_val[len - 1] == '\n') {
-                        it_val[len - 1] = '\0';
+                char input_buffer[256] = "";
+                if (fgets(input_buffer, sizeof(input_buffer), stdin)) {
+                    size_t len = strlen(input_buffer);
+                    if (len > 0 && input_buffer[len - 1] == '\n') {
+                        input_buffer[len - 1] = '\0';
                     }
-                    len = strlen(it_val);
-                    if (len > 0 && it_val[len - 1] == '\r') {
-                        it_val[len - 1] = '\0';
+                    len = strlen(input_buffer);
+                    if (len > 0 && input_buffer[len - 1] == '\r') {
+                        input_buffer[len - 1] = '\0';
                     }
                 }
+
+                if (variables[var_idx].type == VAL_STR && variables[var_idx].as.str_val != NULL) {
+                    free(variables[var_idx].as.str_val);
+                }
+                variables[var_idx].type = VAL_STR;
+                variables[var_idx].as.str_val = strdup(input_buffer);
                 break;
             }
             case OP_ADD: {
