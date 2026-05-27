@@ -1,0 +1,52 @@
+{
+  "Inprint with named pipe": {
+    "prefix": "inprint",
+    "body": "inprint: \"${1:Prompt}\" -> ${2:variable}",
+    "description": "Prompt user and pipe output to a named variable"
+  },
+  "Outprint expression": {
+    "prefix": "outprint",
+    "body": "outprint: ${1:expression}",
+    "description": "Print a string literal, number, variable, or calculation"
+  },
+  "If Statement": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} then:",
+      "\t$0",
+      "endif"
+    ],
+    "description": "Conditional if statement"
+  },
+  "If Else Statement": {
+    "prefix": "ifelse",
+    "body": [
+      "if ${1:condition} then:",
+      "\t$2",
+      "else:",
+      "\t$0",
+      "endif"
+    ],
+    "description": "Conditional if-else statement"
+  },
+  "Set Variable": {
+    "prefix": "set",
+    "body": "set ${1:variable} = ${2:value}",
+    "description": "Assign a value or expression to a variable"
+  },
+  "Label": {
+    "prefix": "label",
+    "body": "label ${1:name}",
+    "description": "Define a loop/jump label"
+  },
+  "Goto": {
+    "prefix": "goto",
+    "body": "goto ${1:label}",
+    "description": "Jump to a defined label"
+  },
+  "End Program": {
+    "prefix": "endf",
+    "body": "endf",
+    "description": "Exit program immediately"
+  }
+}

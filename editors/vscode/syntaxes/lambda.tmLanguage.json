@@ -1,0 +1,94 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Lambda",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#commands"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.lmba",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.lmba",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.lmba",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.lmba",
+          "match": "\\b(set|if|endif|label|goto|endf)\\b"
+        },
+        {
+          "name": "keyword.control.then.lmba",
+          "match": "\\bthen:\\b"
+        },
+        {
+          "name": "keyword.control.else.lmba",
+          "match": "\\belse:\\b"
+        },
+        {
+          "name": "variable.language.fallback.lmba",
+          "match": "\\b!\\b"
+        }
+      ]
+    },
+    "commands": {
+      "patterns": [
+        {
+          "name": "entity.name.function.lmba",
+          "match": "\\b(inprint|outprint):"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.lmba",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.lmba",
+          "match": "(\\+|\\-|\\*|\\/|==|!=|<|>|->|=)"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.lmba"
+}

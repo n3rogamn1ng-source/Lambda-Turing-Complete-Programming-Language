@@ -1,0 +1,37 @@
+{
+  "name": "lambda-support",
+  "displayName": "Lambda Language Support",
+  "description": "Syntax highlighting and snippets for the Lambda language",
+  "version": "0.1.0",
+  "publisher": "n3rog",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "lambda",
+        "aliases": ["Lambda", "lambda"],
+        "extensions": [".lmba"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lambda",
+        "scopeName": "source.lmba",
+        "path": "./syntaxes/lambda.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "lambda",
+        "path": "./snippets.json"
+      }
+    ]
+  }
+}

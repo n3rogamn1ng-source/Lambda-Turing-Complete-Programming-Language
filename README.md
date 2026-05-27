@@ -89,5 +89,17 @@ Lambda features a built-in safety-checking release script. When you run `python 
 
 ---
 
+## 🎨 VS Code Editor Support
+
+We've built a native VS Code extension for Lambda that gives you local syntax highlighting, auto-closing quotes/parentheses, and autocomplete snippets for all keywords as you type.
+
+### How to Install:
+1. Copy the `editors/vscode` folder into your VS Code extensions directory:
+   * **Windows**: `%USERPROFILE%\.vscode\extensions\lambda-support`
+   * **Linux/macOS**: `~/.vscode/extensions/lambda-support`
+2. Restart VS Code!
+
+---
+
 ## 📄 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
