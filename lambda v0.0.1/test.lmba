@@ -1,0 +1,5 @@
+inprint: "Enter your name: "
+outprint: "Hello, "
+outprint: it
+endf
+outprint: "This should not print!"
