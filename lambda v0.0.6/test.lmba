@@ -1,0 +1,9 @@
+inprint: "Enter name: "
+set name = !
+outprint: "Hello, "
+outprint: name
+
+set result = 100 - 5
+outprint: "Math result:"
+outprint: result
+endf
