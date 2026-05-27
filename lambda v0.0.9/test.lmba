@@ -1,0 +1,13 @@
+set x = 1
+
+label loop_start
+outprint: x
+
+set x = x + 1
+
+if x < 6 then:
+    goto loop_start
+endif
+
+outprint: "Loop finished!"
+endf

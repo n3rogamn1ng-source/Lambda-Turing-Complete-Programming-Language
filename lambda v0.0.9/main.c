@@ -60,6 +60,32 @@ int bytecode_count = 0;
 char *symbol_table[256];
 int symbol_count = 0;
 
+// Compiler Label and Pending Goto Tables
+typedef struct {
+    char *name;
+    int address;
+} Label;
+
+Label labels[256];
+int label_count = 0;
+
+typedef struct {
+    char *label_name;
+    int placeholder_offset;
+} PendingGoto;
+
+PendingGoto pending_gotos[256];
+int pending_goto_count = 0;
+
+int find_label(const char *name) {
+    for (int i = 0; i < label_count; i++) {
+        if (strcmp(labels[i].name, name) == 0) {
+            return labels[i].address;
+        }
+    }
+    return -1;
+}
+
 int get_variable_index(const char *name) {
     for (int i = 0; i < symbol_count; i++) {
         if (strcmp(symbol_table[i], name) == 0) {
@@ -380,6 +406,66 @@ int main(int argc, char **argv) {
             int placeholder = pop_if();
             patch_offset(placeholder, bytecode_count);
         }
+        else if (strncmp(line, "label ", 6) == 0) {
+            char *label_name = trim(line + 6);
+            int len = strlen(label_name);
+            int valid = (len > 0);
+            for (int i = 0; i < len; i++) {
+                if (!isalnum((unsigned char)label_name[i]) && label_name[i] != '_') {
+                    valid = 0; break;
+                }
+            }
+            if (!valid) {
+                fprintf(stderr, "Compiler Error: Invalid label name: %s\n", label_name);
+                free(buffer);
+                return 1;
+            }
+            if (find_label(label_name) != -1) {
+                fprintf(stderr, "Compiler Error: Label '%s' already defined\n", label_name);
+                free(buffer);
+                return 1;
+            }
+            if (label_count >= 256) {
+                fprintf(stderr, "Compiler Error: Label table overflow\n");
+                free(buffer);
+                return 1;
+            }
+            labels[label_count].name = strdup(label_name);
+            labels[label_count].address = bytecode_count;
+            label_count++;
+        }
+        else if (strncmp(line, "goto ", 5) == 0) {
+            char *label_name = trim(line + 5);
+            int len = strlen(label_name);
+            int valid = (len > 0);
+            for (int i = 0; i < len; i++) {
+                if (!isalnum((unsigned char)label_name[i]) && label_name[i] != '_') {
+                    valid = 0; break;
+                }
+            }
+            if (!valid) {
+                fprintf(stderr, "Compiler Error: Invalid goto target name: %s\n", label_name);
+                free(buffer);
+                return 1;
+            }
+
+            int addr = find_label(label_name);
+            if (addr != -1) {
+                emit_byte(OP_JUMP);
+                emit_short(addr);
+            } else {
+                if (pending_goto_count >= 256) {
+                    fprintf(stderr, "Compiler Error: Pending goto table overflow\n");
+                    free(buffer);
+                    return 1;
+                }
+                emit_byte(OP_JUMP);
+                pending_gotos[pending_goto_count].label_name = strdup(label_name);
+                pending_gotos[pending_goto_count].placeholder_offset = bytecode_count;
+                pending_goto_count++;
+                emit_short(0);
+            }
+        }
         else if (strcmp(line, "endf") == 0) {
             emit_byte(OP_HALT);
         } 
@@ -390,6 +476,19 @@ int main(int argc, char **argv) {
         }
 
         line = strtok(NULL, "\r\n");
+    }
+
+    // Resolve pending gotos
+    for (int i = 0; i < pending_goto_count; i++) {
+        int addr = find_label(pending_gotos[i].label_name);
+        if (addr == -1) {
+            fprintf(stderr, "Compiler Error: Label '%s' is used but not defined\n", pending_gotos[i].label_name);
+            free(buffer);
+            for (int j = 0; j < label_count; j++) free(labels[j].name);
+            for (int j = 0; j < pending_goto_count; j++) free(pending_gotos[j].label_name);
+            return 1;
+        }
+        patch_offset(pending_gotos[i].placeholder_offset, addr);
     }
 
     if (bytecode_count == 0 || bytecode[bytecode_count - 1] != OP_HALT) {
@@ -448,6 +547,12 @@ int main(int argc, char **argv) {
             if (variables[i].type == VAL_STR && variables[i].as.str_val != NULL) {
                 free(variables[i].as.str_val);
             }
+        }
+        for (int i = 0; i < label_count; i++) {
+            free(labels[i].name);
+        }
+        for (int i = 0; i < pending_goto_count; i++) {
+            free(pending_gotos[i].label_name);
         }
     }
 
