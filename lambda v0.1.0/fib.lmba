@@ -1,0 +1,20 @@
+# Fibonacci Generator
+# Computes the first 10 Fibonacci numbers
+
+set a = 0
+set b = 1
+set count = 0
+
+label loop
+outprint: a
+
+set next = a + b
+set a = b
+set b = next
+
+set count = count + 1
+if count < 10 then:
+    goto loop
+endif
+
+endf

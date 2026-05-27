@@ -1,0 +1,33 @@
+# Pi Calculator (Leibniz Series)
+# Scaled by 100000 to simulate decimals
+# Pi = 4 * (1 - 1/3 + 1/5 - 1/7 + ...)
+
+set sum = 0
+set denom = 1
+set sign = 1
+set count = 0
+
+label loop
+# Calculate term: 400000 / denominator
+set term = 400000 / denom
+
+if sign == 1 then:
+    set sum = sum + term
+else:
+    set sum = sum - term
+endif
+
+# Alternate sign (1 -> -1 -> 1)
+set sign = 0 - sign
+
+set denom = denom + 2
+set count = count + 1
+
+# Run 1000 iterations for precision
+if count < 1000 then:
+    goto loop
+endif
+
+outprint: "Pi (scaled by 100000):"
+outprint: sum
+endf
