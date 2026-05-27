@@ -1,5 +1,0 @@
-inprint: "Enter your name: "
-outprint: "Hello, "
-outprint: !
-endf
-outprint: "This should not print!"

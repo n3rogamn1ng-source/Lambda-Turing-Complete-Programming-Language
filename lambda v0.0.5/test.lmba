@@ -1,0 +1,6 @@
+outprint: "Math Test:"
+outprint: 5 + 10
+outprint: 20 - 4
+outprint: 3 * 7
+outprint: 10 / 2
+endf
