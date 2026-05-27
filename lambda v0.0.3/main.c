@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
                 return 1;
             }
         } 
-        else if (strcmp(line, "outprint: it") == 0) {
+        else if (strcmp(line, "outprint: !") == 0) {
             printf("%s\n", it_val);
         } 
         else if (strcmp(line, "endf") == 0) {

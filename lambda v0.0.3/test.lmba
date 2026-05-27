@@ -1,5 +1,5 @@
 inprint: "Enter your name: "
 outprint: "Hello, "
-outprint: it
+outprint: !
 endf
 outprint: "This should not print!"
