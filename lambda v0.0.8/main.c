@@ -30,7 +30,13 @@ typedef enum {
     OP_DIV,
     OP_OUTPRINT,
     OP_INPRINT,
-    OP_HALT
+    OP_HALT,
+    OP_JUMP,
+    OP_JUMP_IF_FALSE,
+    OP_EQ,
+    OP_NE,
+    OP_LT,
+    OP_GT
 } OpCode;
 
 // Helper function to trim leading and trailing whitespace/newlines
@@ -91,6 +97,11 @@ void emit_byte(uint8_t byte) {
     bytecode[bytecode_count++] = byte;
 }
 
+void emit_short(uint16_t val) {
+    emit_byte((val >> 8) & 0xFF);
+    emit_byte(val & 0xFF);
+}
+
 void emit_int(int val) {
     emit_byte((val >> 24) & 0xFF);
     emit_byte((val >> 16) & 0xFF);
@@ -98,9 +109,36 @@ void emit_int(int val) {
     emit_byte(val & 0xFF);
 }
 
+// Helper to check if a string is a comparison or math operator
+// Returns the operator index, or -1 if not found.
+int find_binary_op(char *expr, char **out_op, int *out_op_len) {
+    char *ops2[] = {"==", "!=", "<=", ">="};
+    for (int i = 0; i < 4; i++) {
+        char *p = strstr(expr, ops2[i]);
+        if (p) {
+            *out_op = p;
+            *out_op_len = 2;
+            return i; // 0: ==, 1: !=, 2: <=, 3: >=
+        }
+    }
+    char *ops1[] = {"<", ">", "+", "-", "*", "/"};
+    for (int i = 0; i < 6; i++) {
+        char *p = strchr(expr, ops1[i][0]);
+        if (p) {
+            *out_op = p;
+            *out_op_len = 1;
+            return i + 4; // 4: <, 5: >, 6: +, 7: -, 8: *, 9: /
+        }
+    }
+    return -1;
+}
+
 // Compile expression helper
 int compile_expression(char *expr) {
     expr = trim(expr);
+    if (expr[0] == '\0') return 0;
+
+    // 1. String literal
     if (expr[0] == '"') {
         char *end = strchr(expr + 1, '"');
         if (end) {
@@ -114,48 +152,98 @@ int compile_expression(char *expr) {
             return 0;
         }
     } 
-    else {
-        // Try parsing math (e.g. 5 + 10)
-        int op1, op2;
-        char op;
-        if (sscanf(expr, "%d %c %d", &op1, &op, &op2) == 3) {
-            if (op == '+' || op == '-' || op == '*' || op == '/') {
-                emit_byte(OP_PUSH_INT);
-                emit_int(op1);
-                emit_byte(OP_PUSH_INT);
-                emit_int(op2);
-                if (op == '+') emit_byte(OP_ADD);
-                else if (op == '-') emit_byte(OP_SUB);
-                else if (op == '*') emit_byte(OP_MUL);
-                else if (op == '/') emit_byte(OP_DIV);
-                return 1;
-            } else {
-                fprintf(stderr, "Compiler Error: Unsupported operator '%c'\n", op);
+    
+    // 2. Fallback !
+    if (strcmp(expr, "!") == 0) {
+        int var_idx = get_variable_index("!");
+        emit_byte(OP_LOAD_VAR);
+        emit_byte(var_idx);
+        return 1;
+    } 
+
+    // 3. Check for binary operator
+    char *op_ptr = NULL;
+    int op_len = 0;
+    int op_id = find_binary_op(expr, &op_ptr, &op_len);
+    if (op_id != -1) {
+        *op_ptr = '\0';
+        char *left = trim(expr);
+        char *right = trim(op_ptr + op_len);
+
+        if (!compile_expression(left) || !compile_expression(right)) {
+            return 0;
+        }
+
+        switch (op_id) {
+            case 0: emit_byte(OP_EQ); break;
+            case 1: emit_byte(OP_NE); break;
+            case 4: emit_byte(OP_LT); break;
+            case 5: emit_byte(OP_GT); break;
+            case 6: emit_byte(OP_ADD); break;
+            case 7: emit_byte(OP_SUB); break;
+            case 8: emit_byte(OP_MUL); break;
+            case 9: emit_byte(OP_DIV); break;
+            default:
+                fprintf(stderr, "Compiler Error: Unsupported operator id %d\n", op_id);
                 return 0;
+        }
+        return 1;
+    }
+
+    // 4. Single Integer
+    int int_val;
+    if (sscanf(expr, "%d", &int_val) == 1) {
+        int is_num = 1;
+        for (int i = 0; expr[i] != '\0'; i++) {
+            if (!isdigit((unsigned char)expr[i]) && expr[i] != '-' && expr[i] != '+') {
+                is_num = 0;
+                break;
             }
-        } 
-        // Try parsing a single integer
-        else if (sscanf(expr, "%d", &op1) == 1) {
+        }
+        if (is_num) {
             emit_byte(OP_PUSH_INT);
-            emit_int(op1);
-            return 1;
-        } 
-        // Must be a variable name (like "actual_name" or "!")
-        else {
-            int len = strlen(expr);
-            if (len == 0) return 0;
-            for (int i = 0; i < len; i++) {
-                if (!isalnum((unsigned char)expr[i]) && expr[i] != '_' && expr[i] != '!') {
-                    fprintf(stderr, "Compiler Error: Invalid variable name or expression: %s\n", expr);
-                    return 0;
-                }
-            }
-            int var_idx = get_variable_index(expr);
-            emit_byte(OP_LOAD_VAR);
-            emit_byte(var_idx);
+            emit_int(int_val);
             return 1;
         }
     }
+
+    // 5. Variable name
+    int len = strlen(expr);
+    for (int i = 0; i < len; i++) {
+        if (!isalnum((unsigned char)expr[i]) && expr[i] != '_') {
+            fprintf(stderr, "Compiler Error: Invalid variable name or expression: %s\n", expr);
+            return 0;
+        }
+    }
+    int var_idx = get_variable_index(expr);
+    emit_byte(OP_LOAD_VAR);
+    emit_byte(var_idx);
+    return 1;
+}
+
+// Control Flow Compiler State
+int if_stack[64];
+int if_stack_top = 0;
+
+void push_if(int offset) {
+    if (if_stack_top >= 64) {
+        fprintf(stderr, "Compiler Error: Too many nested if statements\n");
+        exit(1);
+    }
+    if_stack[if_stack_top++] = offset;
+}
+
+int pop_if() {
+    if (if_stack_top <= 0) {
+        fprintf(stderr, "Compiler Error: Unmatched endif/else\n");
+        exit(1);
+    }
+    return if_stack[--if_stack_top];
+}
+
+void patch_offset(int placeholder_offset, int target_value) {
+    bytecode[placeholder_offset] = (target_value >> 8) & 0xFF;
+    bytecode[placeholder_offset + 1] = target_value & 0xFF;
 }
 
 int main(int argc, char **argv) {
@@ -211,7 +299,6 @@ int main(int argc, char **argv) {
                 var_name = "!";
             }
 
-            // Extract the prompt string (must be a string literal)
             if (prompt_part[0] == '"') {
                 char *end = strchr(prompt_part + 1, '"');
                 if (end) {
@@ -260,6 +347,38 @@ int main(int argc, char **argv) {
             int var_idx = get_variable_index(var_name);
             emit_byte(OP_STORE_VAR);
             emit_byte(var_idx);
+        }
+        else if (strncmp(line, "if ", 3) == 0) {
+            char *then_ptr = strstr(line, " then:");
+            if (!then_ptr) {
+                fprintf(stderr, "Compiler Error: Expected ' then:' in if statement: %s\n", line);
+                free(buffer);
+                return 1;
+            }
+            *then_ptr = '\0';
+            char *expr = trim(line + 3);
+
+            if (!compile_expression(expr)) {
+                free(buffer);
+                return 1;
+            }
+
+            emit_byte(OP_JUMP_IF_FALSE);
+            push_if(bytecode_count);
+            emit_short(0);
+        }
+        else if (strcmp(line, "else:") == 0) {
+            emit_byte(OP_JUMP);
+            int else_jump_placeholder = bytecode_count;
+            emit_short(0);
+
+            int if_placeholder = pop_if();
+            patch_offset(if_placeholder, bytecode_count);
+            push_if(else_jump_placeholder);
+        }
+        else if (strcmp(line, "endif") == 0) {
+            int placeholder = pop_if();
+            patch_offset(placeholder, bytecode_count);
         }
         else if (strcmp(line, "endf") == 0) {
             emit_byte(OP_HALT);
@@ -464,6 +583,83 @@ int main(int argc, char **argv) {
                 } else {
                     printf("%d\n", val.as.int_val);
                 }
+                break;
+            }
+            case OP_JUMP: {
+                uint16_t offset = (bytecode[ip] << 8) | bytecode[ip+1];
+                ip = offset;
+                break;
+            }
+            case OP_JUMP_IF_FALSE: {
+                uint16_t offset = (bytecode[ip] << 8) | bytecode[ip+1];
+                ip += 2;
+                Value val = pop();
+                if (val.type != VAL_INT) {
+                    fprintf(stderr, "VM Runtime Error: Conditional expression must evaluate to integer\n");
+                    clean_up();
+                    return 1;
+                }
+                if (val.as.int_val == 0) {
+                    ip = offset;
+                }
+                break;
+            }
+            case OP_EQ: {
+                Value b = pop();
+                Value a = pop();
+                Value res;
+                res.type = VAL_INT;
+                if (a.type == VAL_INT && b.type == VAL_INT) {
+                    res.as.int_val = (a.as.int_val == b.as.int_val);
+                } else if (a.type == VAL_STR && b.type == VAL_STR) {
+                    res.as.int_val = (strcmp(a.as.str_val, b.as.str_val) == 0);
+                } else {
+                    res.as.int_val = 0;
+                }
+                push(res);
+                break;
+            }
+            case OP_NE: {
+                Value b = pop();
+                Value a = pop();
+                Value res;
+                res.type = VAL_INT;
+                if (a.type == VAL_INT && b.type == VAL_INT) {
+                    res.as.int_val = (a.as.int_val != b.as.int_val);
+                } else if (a.type == VAL_STR && b.type == VAL_STR) {
+                    res.as.int_val = (strcmp(a.as.str_val, b.as.str_val) != 0);
+                } else {
+                    res.as.int_val = 1;
+                }
+                push(res);
+                break;
+            }
+            case OP_LT: {
+                Value b = pop();
+                Value a = pop();
+                if (a.type != VAL_INT || b.type != VAL_INT) {
+                    fprintf(stderr, "VM Runtime Error: Relational operators require integers\n");
+                    clean_up();
+                    return 1;
+                }
+                Value res;
+                res.type = VAL_INT;
+                res.as.int_val = (a.as.int_val < b.as.int_val);
+                push(res);
+                break;
+            }
+            case OP_GT: {
+                Value b = pop();
+                Value a = pop();
+                if (a.type != VAL_INT || b.type != VAL_INT) {
+                    fprintf(stderr, "VM Runtime Error: Relational operators require integers\n");
+                    clean_up();
+                    return 1;
+                }
+                Value res;
+                res.type = VAL_INT;
+                res.as.int_val = (a.as.int_val > b.as.int_val);
+                push(res);
                 break;
             }
             case OP_HALT:
